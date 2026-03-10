@@ -41,6 +41,11 @@ def _startup():
             db.add(AppConfig(key="url-img-hone", value=""))
             db.commit()
 
+        existing = db.get(AppConfig, "url-hone")
+        if not existing:
+            db.add(AppConfig(key="url-hone", value=""))
+            db.commit()
+
     finally:
         db.close()
 

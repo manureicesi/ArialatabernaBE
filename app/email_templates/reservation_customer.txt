@@ -11,4 +11,7 @@ Recibimos a túa solicitude de reserva. Estes son os datos:
 
 Grazas por reservar con nós.
 
+Podes consultar e cancelar a túa reserva en:
+{{ manage_url }}
+
 Se precisas modificar ou cancelar a reserva, facilita a referencia {{ reservation_id }}.

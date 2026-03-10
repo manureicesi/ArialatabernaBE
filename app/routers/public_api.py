@@ -421,6 +421,17 @@ def create_reservation(payload: ReservationCreate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(r)
 
+    base_url = None
+    try:
+        cfg = db.get(AppConfig, "url-hone")
+        if cfg and cfg.value and cfg.value.strip():
+            base_url = cfg.value.strip().rstrip("/")
+    except Exception:
+        base_url = None
+
+    manage_path = f"/reservas/{reservation_public_id(r.id)}"
+    manage_url = f"{base_url}{manage_path}" if base_url else manage_path
+
     ctx = {
         "reservation_id": reservation_public_id(r.id),
         "date": r.date,
@@ -430,6 +441,7 @@ def create_reservation(payload: ReservationCreate, db: Session = Depends(get_db)
         "customer_phone": r.customer_phone,
         "customer_email": r.customer_email,
         "notes": r.notes,
+        "manage_url": manage_url,
     }
     if settings.admin_email:
         try:
