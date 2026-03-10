@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
-
-from datetime import datetime, timedelta
 
 from app.auth import require_admin
 from app.db import get_db
@@ -12,7 +12,6 @@ from app.models import AppConfig, MenuItem, MenuItemType, ProjectContact, Schedu
 from app.models import MenuCategory
 from app.schemas import (
     ConfigItem,
-    ConfigListResponse,
     ProjectContactAdminItem,
     ProjectContactAdminListResponse,
     ProjectContactAdminStatsResponse,
@@ -32,7 +31,6 @@ from app.schemas import (
     CancelReservation,
 )
 from app.utils import eur_to_cents, event_public_id, reservation_public_id
-
 
 router = APIRouter(prefix="/api/v1/admin", dependencies=[Depends(require_admin)])
 
