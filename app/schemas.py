@@ -131,6 +131,14 @@ class AvailabilityResponse(BaseModel):
     slots: list[AvailabilitySlot]
 
 
+class AvailabilityRangeResponse(BaseModel):
+    fromDate: str
+    toDate: str
+    partySize: int
+    timezone: str = "Europe/Madrid"
+    days: list[AvailabilityResponse]
+
+
 class ReservationCustomer(BaseModel):
     name: str
     phone: str | None = None

@@ -20,6 +20,7 @@ from app.schemas import (
     ServiceWindowSchema,
     AvailabilityResponse,
     AvailabilitySlot,
+    AvailabilityRangeResponse,
     ReservationCreate,
     ReservationOut,
     ReservationCustomer,
@@ -304,42 +305,73 @@ def _generate_slots(windows: list[ServiceWindow], step_minutes: int = 30) -> lis
     return sorted(set(slots))
 
 
-@router.get("/availability", response_model=AvailabilityResponse)
-def get_availability(date: str, partySize: int, db: Session = Depends(get_db)):
-    try:
-        if len(date) == 10 and date[2] == "-" and date[5] == "-":
-            date = datetime.strptime(date, "%d-%m-%Y").strftime("%Y-%m-%d")
-        else:
-            date = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date")
+@router.get("/availability", response_model=AvailabilityResponse | AvailabilityRangeResponse)
+def get_availability(
+    partySize: int,
+    date: str | None = None,
+    limitDays: int = 7,
+    db: Session = Depends(get_db),
+):
+    def _normalize_date(v: str) -> str:
+        if len(v) == 10 and v[2] == "-" and v[5] == "-":
+            return datetime.strptime(v, "%d-%m-%Y").strftime("%Y-%m-%d")
+        return datetime.strptime(v, "%Y-%m-%d").strftime("%Y-%m-%d")
 
-    day = db.execute(select(ScheduleDay).where(ScheduleDay.date == date)).scalar_one_or_none()
-    if not day or not day.open:
-        return AvailabilityResponse(date=date, partySize=partySize, slots=[])
+    def _availability_for_day(day_date: str, day: ScheduleDay | None) -> AvailabilityResponse:
+        if not day or not day.open:
+            return AvailabilityResponse(date=day_date, partySize=partySize, slots=[])
 
-    windows = day.windows
-    slot_times = _generate_slots(windows)
+        slot_times = _generate_slots(day.windows)
+        res_counts = dict(
+            db.execute(
+                select(Reservation.time, func.count(Reservation.id))
+                .where(
+                    Reservation.date == day_date,
+                    Reservation.status.in_([ReservationStatus.PENDING, ReservationStatus.CONFIRMED]),
+                )
+                .group_by(Reservation.time)
+            ).all()
+        )
+        capacity = settings.reservation_slot_capacity
+        slots: list[AvailabilitySlot] = []
+        for t in slot_times:
+            count = int(res_counts.get(t, 0))
+            available = count < capacity
+            slots.append(AvailabilitySlot(time=t, available=available, reason=None if available else "FULL"))
+        return AvailabilityResponse(date=day_date, partySize=partySize, slots=slots)
 
-    res_counts = dict(
+    if date is not None:
+        try:
+            norm = _normalize_date(date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date")
+
+        day = db.execute(select(ScheduleDay).where(ScheduleDay.date == norm)).scalar_one_or_none()
+        return _availability_for_day(norm, day)
+
+    if limitDays < 1 or limitDays > 60:
+        raise HTTPException(status_code=400, detail="Invalid limitDays")
+
+    from_date = datetime.utcnow().strftime("%Y-%m-%d")
+    to_date = (datetime.utcnow() + timedelta(days=limitDays - 1)).strftime("%Y-%m-%d")
+
+    days = (
         db.execute(
-            select(Reservation.time, func.count(Reservation.id))
-            .where(
-                Reservation.date == date,
-                Reservation.status.in_([ReservationStatus.PENDING, ReservationStatus.CONFIRMED]),
-            )
-            .group_by(Reservation.time)
-        ).all()
+            select(ScheduleDay)
+            .where(ScheduleDay.date >= from_date, ScheduleDay.date <= to_date)
+            .order_by(ScheduleDay.date.asc())
+        )
+        .scalars()
+        .all()
     )
+    day_by_date: dict[str, ScheduleDay] = {d.date: d for d in days}
 
-    capacity = settings.reservation_slot_capacity
-    slots: list[AvailabilitySlot] = []
-    for t in slot_times:
-        count = int(res_counts.get(t, 0))
-        available = count < capacity
-        slots.append(AvailabilitySlot(time=t, available=available, reason=None if available else "FULL"))
+    out_days: list[AvailabilityResponse] = []
+    for i in range(limitDays):
+        d = (datetime.utcnow() + timedelta(days=i)).strftime("%Y-%m-%d")
+        out_days.append(_availability_for_day(d, day_by_date.get(d)))
 
-    return AvailabilityResponse(date=date, partySize=partySize, slots=slots)
+    return AvailabilityRangeResponse(fromDate=from_date, toDate=to_date, partySize=partySize, days=out_days)
 
 
 @router.post("/reservations", response_model=ReservationOut, status_code=status.HTTP_201_CREATED)
