@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class ErrorResponse(BaseModel):
@@ -138,11 +138,23 @@ class ReservationCustomer(BaseModel):
 
 
 class ReservationCreate(BaseModel):
-    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    date: str = Field(..., pattern=r"^(\d{2}-\d{2}-\d{4}|\d{4}-\d{2}-\d{2})$")
     time: str = Field(..., pattern=r"^\d{2}:\d{2}$")
-    partySize: int = Field(..., ge=1, le=50)
+    partySize: int = Field(..., ge=1, le=10)
     customer: ReservationCustomer
     notes: str | None = None
+
+    @field_validator("date")
+    @classmethod
+    def _normalize_date(cls, v: str) -> str:
+        try:
+            if len(v) == 10 and v[2] == "-" and v[5] == "-":
+                dt = datetime.strptime(v, "%d-%m-%Y")
+                return dt.strftime("%Y-%m-%d")
+            dt = datetime.strptime(v, "%Y-%m-%d")
+            return dt.strftime("%Y-%m-%d")
+        except ValueError as e:
+            raise ValueError("Invalid date format") from e
 
 
 class ReservationOut(BaseModel):

@@ -306,6 +306,14 @@ def _generate_slots(windows: list[ServiceWindow], step_minutes: int = 30) -> lis
 
 @router.get("/availability", response_model=AvailabilityResponse)
 def get_availability(date: str, partySize: int, db: Session = Depends(get_db)):
+    try:
+        if len(date) == 10 and date[2] == "-" and date[5] == "-":
+            date = datetime.strptime(date, "%d-%m-%Y").strftime("%Y-%m-%d")
+        else:
+            date = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date")
+
     day = db.execute(select(ScheduleDay).where(ScheduleDay.date == date)).scalar_one_or_none()
     if not day or not day.open:
         return AvailabilityResponse(date=date, partySize=partySize, slots=[])

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     admin_password: str
 
     cors_origins: str = ""
-    reservation_slot_capacity: int = 10
+    reservation_slot_capacity: int = 3
 
     class Config:
         env_file = ".env"

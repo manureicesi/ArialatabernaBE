@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from app.auth import require_admin
 from app.db import get_db
-from app.models import AppConfig, MenuItem, MenuItemType, ProjectContact, ScheduleDay, ServiceWindow, Event
+from app.models import AppConfig, MenuItem, MenuItemType, ProjectContact, ScheduleDay, ServiceWindow, Event, Reservation, ReservationStatus
 from app.models import MenuCategory
 from app.schemas import (
     ConfigItem,
@@ -27,8 +27,11 @@ from app.schemas import (
     EventCreate,
     EventUpdate,
     EventCreateResponse,
+    ReservationOut,
+    ReservationCustomer,
+    CancelReservation,
 )
-from app.utils import eur_to_cents, event_public_id
+from app.utils import eur_to_cents, event_public_id, reservation_public_id
 
 
 router = APIRouter(prefix="/api/v1/admin", dependencies=[Depends(require_admin)])
@@ -295,6 +298,14 @@ def update_menu_item(item_id: str, payload: AdminFoodUpdate | AdminWineUpdate, d
 
 @router.post("/schedule/day", status_code=status.HTTP_201_CREATED)
 def upsert_schedule_day(date: str, open: bool = True, note: str | None = None, db: Session = Depends(get_db)):
+    try:
+        if len(date) == 10 and date[2] == "-" and date[5] == "-":
+            date = datetime.strptime(date, "%d-%m-%Y").strftime("%Y-%m-%d")
+        else:
+            date = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date")
+
     day = db.execute(select(ScheduleDay).where(ScheduleDay.date == date)).scalar_one_or_none()
     if not day:
         day = ScheduleDay(date=date, open=open, note=note)
@@ -310,6 +321,14 @@ def upsert_schedule_day(date: str, open: bool = True, note: str | None = None, d
 
 @router.post("/schedule/window", status_code=status.HTTP_201_CREATED)
 def add_service_window(date: str, start: str, end: str, db: Session = Depends(get_db)):
+    try:
+        if len(date) == 10 and date[2] == "-" and date[5] == "-":
+            date = datetime.strptime(date, "%d-%m-%Y").strftime("%Y-%m-%d")
+        else:
+            date = datetime.strptime(date, "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date")
+
     day = db.execute(select(ScheduleDay).where(ScheduleDay.date == date)).scalar_one_or_none()
     if not day:
         day = ScheduleDay(date=date, open=True)
@@ -322,6 +341,91 @@ def add_service_window(date: str, start: str, end: str, db: Session = Depends(ge
     db.commit()
     db.refresh(window)
     return {"id": window.id}
+
+
+def _reservation_to_out(r: Reservation) -> ReservationOut:
+    return ReservationOut(
+        id=reservation_public_id(r.id),
+        status=r.status.value,
+        date=r.date,
+        time=r.time,
+        partySize=r.party_size,
+        customer=ReservationCustomer(name=r.customer_name, phone=r.customer_phone, email=r.customer_email),
+        notes=r.notes,
+        createdAt=r.created_at,
+    )
+
+
+@router.get("/reservations", response_model=list[ReservationOut])
+def list_reservations_from_today(
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    if limit < 1 or limit > 500:
+        raise HTTPException(status_code=400, detail="Invalid limit")
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="Invalid offset")
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    rows = (
+        db.execute(
+            select(Reservation)
+            .where(Reservation.date >= today)
+            .order_by(Reservation.date.asc(), Reservation.time.asc(), Reservation.id.asc())
+            .offset(offset)
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )
+    return [_reservation_to_out(r) for r in rows]
+
+
+@router.post("/reservations/{reservation_id}/confirm", response_model=ReservationOut)
+def confirm_reservation(reservation_id: str, db: Session = Depends(get_db)):
+    if not reservation_id.startswith("resv_"):
+        raise HTTPException(status_code=404, detail="Not found")
+    try:
+        db_id = int(reservation_id.split("_", 1)[1])
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    r = db.execute(select(Reservation).where(Reservation.id == db_id)).scalar_one_or_none()
+    if not r:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if r.status in [ReservationStatus.CANCELLED, ReservationStatus.REJECTED]:
+        raise HTTPException(status_code=409, detail="Reservation cannot be confirmed")
+
+    r.status = ReservationStatus.CONFIRMED
+    db.add(r)
+    db.commit()
+    db.refresh(r)
+    return _reservation_to_out(r)
+
+
+@router.post("/reservations/{reservation_id}/cancel", response_model=ReservationOut)
+def cancel_reservation_admin(reservation_id: str, payload: CancelReservation, db: Session = Depends(get_db)):
+    if not reservation_id.startswith("resv_"):
+        raise HTTPException(status_code=404, detail="Not found")
+    try:
+        db_id = int(reservation_id.split("_", 1)[1])
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    r = db.execute(select(Reservation).where(Reservation.id == db_id)).scalar_one_or_none()
+    if not r:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if r.status in [ReservationStatus.CANCELLED, ReservationStatus.REJECTED]:
+        raise HTTPException(status_code=409, detail="Reservation cannot be cancelled")
+
+    r.status = ReservationStatus.CANCELLED
+    db.add(r)
+    db.commit()
+    db.refresh(r)
+    return _reservation_to_out(r)
 
 
 @router.get("/contacts/projects", response_model=ProjectContactAdminListResponse)
