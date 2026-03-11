@@ -68,7 +68,14 @@ def send_templated_email(*, to: str, subject: str, template_base: str, context: 
                 smtp.login(settings.smtp_user, settings.smtp_password)
             smtp.send_message(msg)
     except Exception:
-        _logger.exception("Failed sending email to %s", to)
+        _logger.exception(
+            "Failed sending email to %s (smtp_host=%s smtp_port=%s smtp_use_tls=%s smtp_user=%s)",
+            to,
+            settings.smtp_host,
+            settings.smtp_port,
+            settings.smtp_use_tls,
+            settings.smtp_user,
+        )
         raise
 
 
