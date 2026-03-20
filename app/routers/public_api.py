@@ -331,9 +331,19 @@ def get_availability(
         slot_times = _generate_slots(day.windows)
         now_local = datetime.now(ZoneInfo("Europe/Madrid"))
         today = now_local.strftime("%Y-%m-%d")
-        if day_date == today:
-            now_time = now_local.strftime("%H:%M")
-            slot_times = [t for t in slot_times if t >= now_time]
+        is_today = day_date == today
+        now_time = now_local.strftime("%H:%M") if is_today else None
+
+        started_windows: list[ServiceWindow] = []
+        if is_today:
+            started_windows = [w for w in day.windows if now_time >= w.start]
+
+        def _in_started_window(t: str) -> bool:
+            return any(w.start <= t < w.end for w in started_windows)
+
+        if is_today:
+            slot_times = [t for t in slot_times if t >= now_time or _in_started_window(t)]
+
         res_counts = dict(
             db.execute(
                 select(Reservation.time, func.count(Reservation.id))
