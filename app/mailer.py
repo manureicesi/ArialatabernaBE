@@ -61,9 +61,13 @@ def send_templated_email(*, to: str, subject: str, template_base: str, context: 
         msg.add_alternative(html_body, subtype="html")
 
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
+        if settings.smtp_use_tls and settings.smtp_port == 465:
+            smtp = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=15)
+        else:
+            smtp = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15)
             if settings.smtp_use_tls:
                 smtp.starttls()
+        with smtp:
             if settings.smtp_user and settings.smtp_password:
                 smtp.login(settings.smtp_user, settings.smtp_password)
             smtp.send_message(msg)
