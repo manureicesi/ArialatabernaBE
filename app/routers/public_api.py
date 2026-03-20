@@ -357,9 +357,12 @@ def get_availability(
         capacity = settings.reservation_slot_capacity
         slots: list[AvailabilitySlot] = []
         for t in slot_times:
-            count = int(res_counts.get(t, 0))
-            available = count < capacity
-            slots.append(AvailabilitySlot(time=t, available=available, reason=None if available else "FULL"))
+            if _in_started_window(t):
+                slots.append(AvailabilitySlot(time=t, available=False, reason="No se puede reservar llame por telefono"))
+            else:
+                count = int(res_counts.get(t, 0))
+                available = count < capacity
+                slots.append(AvailabilitySlot(time=t, available=available, reason=None if available else "FULL"))
         return AvailabilityResponse(date=day_date, partySize=partySize, slots=slots)
 
     if date is not None:
