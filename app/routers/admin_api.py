@@ -624,7 +624,7 @@ def list_events(
             raise HTTPException(status_code=400, detail="Invalid to")
         stmt = stmt.where(Event.date_start < to_dt)
 
-    stmt = stmt.order_by(Event.date_start.desc()).offset(offset).limit(limit + 1)
+    stmt = stmt.order_by(Event.date_start.asc()).offset(offset).limit(limit + 1)
     rows = db.execute(stmt).scalars().all()
 
     next_cursor = None
