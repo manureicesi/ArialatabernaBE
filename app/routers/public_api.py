@@ -3,11 +3,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import logging
+import urllib.error
+import urllib.request
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
-
-import logging
 
 from app.db import get_db
 from app.models import MenuItem, MenuItemType, ScheduleDay, ServiceWindow, Reservation, ReservationStatus, ProjectContact, Event, AppConfig, MenuCategory, Customer
@@ -15,7 +17,6 @@ from app.schemas import (
     MenuResponse,
     FoodItem,
     WineItem,
-    EventImageOut,
     EventPublicDetail,
     EventPublicItem,
     EventPublicListItem,
@@ -120,7 +121,7 @@ def list_events(
     )
 
 
-@router.get("/events/{event_id}/image", response_model=EventImageOut)
+@router.get("/events/{event_id}/image")
 def get_event_image(event_id: str, db: Session = Depends(get_db)):
     if not event_id.startswith("evt_"):
         raise HTTPException(status_code=404, detail="Not found")
@@ -134,7 +135,16 @@ def get_event_image(event_id: str, db: Session = Depends(get_db)):
     if not it:
         raise HTTPException(status_code=404, detail="Not found")
 
-    return EventImageOut(id=event_public_id(it.id), imageUrl=it.image_url)
+    if not it.image_url:
+        raise HTTPException(status_code=404, detail="No image available")
+
+    try:
+        with urllib.request.urlopen(it.image_url) as response:
+            image_data = response.read()
+            content_type = response.headers.get("Content-Type", "image/jpeg")
+        return Response(content=image_data, media_type=content_type)
+    except urllib.error.URLError:
+        raise HTTPException(status_code=502, detail="Failed to fetch image from URL")
 
 
 @router.get("/events/{event_id}", response_model=EventPublicDetail)
