@@ -15,8 +15,10 @@ from app.schemas import (
     MenuResponse,
     FoodItem,
     WineItem,
+    EventImageOut,
     EventPublicDetail,
     EventPublicItem,
+    EventPublicListItem,
     EventPublicListResponse,
     ScheduleResponse,
     ScheduleDaySchema,
@@ -101,7 +103,7 @@ def list_events(
 
     return EventPublicListResponse(
         items=[
-            EventPublicItem(
+            EventPublicListItem(
                 id=event_public_id(it.id),
                 title=it.title,
                 dateStart=it.date_start,
@@ -109,7 +111,6 @@ def list_events(
                 timezone=it.timezone,
                 description=it.description,
                 category=it.category,
-                imageUrl=it.image_url,
                 locationName=it.location_name,
                 isPublished=it.is_published,
             )
@@ -117,6 +118,23 @@ def list_events(
         ],
         nextCursor=next_cursor,
     )
+
+
+@router.get("/events/{event_id}/image", response_model=EventImageOut)
+def get_event_image(event_id: str, db: Session = Depends(get_db)):
+    if not event_id.startswith("evt_"):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    try:
+        db_id = int(event_id.split("_", 1)[1])
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    it = db.execute(select(Event).where(Event.id == db_id, Event.is_published == True)).scalar_one_or_none()  # noqa: E712
+    if not it:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    return EventImageOut(id=event_public_id(it.id), imageUrl=it.image_url)
 
 
 @router.get("/events/{event_id}", response_model=EventPublicDetail)

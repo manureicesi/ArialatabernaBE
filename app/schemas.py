@@ -247,6 +247,18 @@ class EventBase(BaseModel):
     isPublished: bool = False
 
 
+class EventPublicListItem(BaseModel):
+    id: str
+    title: str
+    dateStart: datetime
+    dateEnd: datetime | None = None
+    timezone: str = "Europe/Madrid"
+    description: str
+    category: str
+    locationName: str | None = None
+    isPublished: bool = False
+
+
 class EventPublicItem(EventBase):
     id: str
 
@@ -257,8 +269,13 @@ class EventPublicDetail(EventPublicItem):
 
 
 class EventPublicListResponse(BaseModel):
-    items: list[EventPublicItem]
+    items: list[EventPublicListItem]
     nextCursor: str | None = None
+
+
+class EventImageOut(BaseModel):
+    id: str
+    imageUrl: str
 
 
 class EventAdminItem(EventPublicDetail):
