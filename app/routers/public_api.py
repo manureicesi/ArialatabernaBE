@@ -131,7 +131,7 @@ def get_event_image(event_id: str, db: Session = Depends(get_db)):
     except ValueError:
         raise HTTPException(status_code=404, detail="Not found")
 
-    it = db.execute(select(Event).where(Event.id == db_id, Event.is_published == True)).scalar_one_or_none()  # noqa: E712
+    it = db.execute(select(Event).where(Event.id == db_id)).scalar_one_or_none()  # noqa: E712
     if not it:
         raise HTTPException(status_code=404, detail="Not found")
 
