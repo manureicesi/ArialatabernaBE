@@ -613,6 +613,9 @@ def list_events(
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid from")
         stmt = stmt.where(Event.date_start >= from_dt)
+    else:
+        # By default, exclude past events
+        stmt = stmt.where(Event.date_start >= datetime.utcnow())
 
     if to:
         try:
