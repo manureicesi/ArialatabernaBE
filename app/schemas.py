@@ -273,11 +273,6 @@ class EventPublicListResponse(BaseModel):
     nextCursor: str | None = None
 
 
-class EventImageOut(BaseModel):
-    id: str
-    imageUrl: str
-
-
 class EventAdminItem(EventPublicDetail):
     pass
 
