@@ -24,7 +24,7 @@ from app.schemas import (
     AdminWineUpdate,
     MenuCategoryCreate,
     MenuCategoryItem,
-    EventAdminItem,
+    EventAdminListItem,
     EventAdminListResponse,
     EventCreate,
     EventUpdate,
@@ -631,7 +631,7 @@ def list_events(
 
     return EventAdminListResponse(
         items=[
-            EventAdminItem(
+            EventAdminListItem(
                 id=event_public_id(it.id),
                 title=it.title,
                 dateStart=it.date_start,
@@ -639,7 +639,6 @@ def list_events(
                 timezone=it.timezone,
                 description=it.description,
                 category=it.category,
-                imageUrl=it.image_url,
                 locationName=it.location_name,
                 isPublished=it.is_published,
                 createdAt=it.created_at,

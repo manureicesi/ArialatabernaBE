@@ -282,8 +282,22 @@ class EventAdminItem(EventPublicDetail):
     pass
 
 
+class EventAdminListItem(BaseModel):
+    id: str
+    title: str
+    dateStart: datetime
+    dateEnd: datetime | None = None
+    timezone: str = "Europe/Madrid"
+    description: str
+    category: str
+    locationName: str | None = None
+    isPublished: bool = False
+    createdAt: datetime
+    updatedAt: datetime
+
+
 class EventAdminListResponse(BaseModel):
-    items: list[EventAdminItem]
+    items: list[EventAdminListItem]
     nextCursor: str | None = None
 
 
