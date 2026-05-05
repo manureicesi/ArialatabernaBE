@@ -10,10 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.auth import require_admin
 from app.db import get_db
-from app.models import AppConfig, MenuItem, MenuItemType, ProjectContact, ScheduleDay, ServiceWindow, Event, Reservation, ReservationStatus
+from app.models import AppConfig, MenuItem, MenuItemType, ProjectContact, ScheduleDay, ServiceWindow, Event, Reservation, ReservationStatus, Customer
 from app.models import MenuCategory
 from app.schemas import (
     ConfigItem,
+    CustomerOut,
     ProjectContactAdminItem,
     ProjectContactAdminListResponse,
     ProjectContactAdminStatsResponse,
@@ -751,3 +752,41 @@ def delete_event(event_id: str, db: Session = Depends(get_db)):
     db.delete(ev)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ─── Customers ────────────────────────────────────────────────────────────────
+
+
+@router.get("/customers", response_model=list[CustomerOut])
+def list_customers(
+    limit: int = 100,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+):
+    if limit < 1 or limit > 500:
+        raise HTTPException(status_code=400, detail="Invalid limit")
+    if offset < 0:
+        raise HTTPException(status_code=400, detail="Invalid offset")
+
+    rows = (
+        db.execute(
+            select(Customer)
+            .order_by(Customer.updated_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        CustomerOut(
+            id=c.id,
+            name=c.name,
+            phone=c.phone,
+            email=c.email,
+            reservationCount=c.reservation_count,
+            createdAt=c.created_at,
+            updatedAt=c.updated_at,
+        )
+        for c in rows
+    ]

@@ -282,6 +282,16 @@ class EventCreateResponse(BaseModel):
     id: str
 
 
+class CustomerOut(BaseModel):
+    id: int
+    name: str
+    phone: str | None = None
+    email: str | None = None
+    reservationCount: int
+    createdAt: datetime
+    updatedAt: datetime
+
+
 class ConfigItem(BaseModel):
     key: str
     value: str

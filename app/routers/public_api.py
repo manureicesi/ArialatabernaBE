@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 import logging
 
 from app.db import get_db
-from app.models import MenuItem, MenuItemType, ScheduleDay, ServiceWindow, Reservation, ReservationStatus, ProjectContact, Event, AppConfig, MenuCategory
+from app.models import MenuItem, MenuItemType, ScheduleDay, ServiceWindow, Reservation, ReservationStatus, ProjectContact, Event, AppConfig, MenuCategory, Customer
 from app.schemas import (
     MenuResponse,
     FoodItem,
@@ -35,7 +35,7 @@ from app.schemas import (
     MenuCategoryItem,
 )
 from app.settings import settings
-from app.utils import cents_to_eur, eur_to_cents, food_public_id, wine_public_id, reservation_public_id, lead_public_id, event_public_id, now_utc
+from app.utils import cents_to_eur, food_public_id, wine_public_id, reservation_public_id, lead_public_id, event_public_id, now_utc
 from app.mailer import send_templated_email_async
 
 
@@ -440,6 +440,26 @@ def create_reservation(payload: ReservationCreate, db: Session = Depends(get_db)
     db.add(r)
     db.commit()
     db.refresh(r)
+
+    # Upsert customer record
+    existing_customer = db.execute(
+        select(Customer).where(func.lower(Customer.name) == r.customer_name.strip().lower())
+    ).scalar_one_or_none()
+    if existing_customer:
+        if r.customer_phone:
+            existing_customer.phone = r.customer_phone
+        if r.customer_email:
+            existing_customer.email = r.customer_email
+        existing_customer.reservation_count = existing_customer.reservation_count + 1
+        db.add(existing_customer)
+    else:
+        new_customer = Customer(
+            name=r.customer_name.strip(),
+            phone=r.customer_phone,
+            email=r.customer_email,
+        )
+        db.add(new_customer)
+    db.commit()
 
     base_url = None
     try:

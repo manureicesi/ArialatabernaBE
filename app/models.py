@@ -159,3 +159,18 @@ class Event(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    reservation_count: Mapped[int] = mapped_column(Integer, default=1)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
